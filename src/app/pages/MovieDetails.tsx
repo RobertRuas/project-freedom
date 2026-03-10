@@ -14,7 +14,7 @@ export function MovieDetails() {
   }
 
   if (error) {
-    return <p className="text-red-400 text-sm">Erro: {error}</p>;
+    return <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>;
   }
 
   if (!movie) {

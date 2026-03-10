@@ -22,6 +22,44 @@ class XtreamClient {
     return String(serverUrl || '').trim().replace(/\/+$/, '');
   }
 
+  /**
+   * Monta uma mensagem de erro mais explicativa para problemas de rede.
+   * Evitamos expor credenciais, usando apenas a URL base.
+   */
+  private buildErrorMessage(error: unknown, baseUrl: string, timeoutMs: number) {
+    const rawMessage = error instanceof Error ? error.message : String(error || '');
+    const hints: string[] = [];
+
+    if (!baseUrl) {
+      hints.push('VITE_XTREAM_SERVER_URL está vazio ou inválido.');
+    }
+
+    if (
+      rawMessage.toLowerCase().includes('failed to fetch') ||
+      rawMessage.toLowerCase().includes('load failed') ||
+      rawMessage.toLowerCase().includes('networkerror')
+    ) {
+      hints.push('Verifique se o servidor Xtream está acessível e se CORS está liberado.');
+    }
+
+    if (rawMessage.toLowerCase().includes('tempo esgotado')) {
+      hints.push(`Ajuste VITE_XTREAM_TIMEOUT_MS (atual: ${timeoutMs}ms).`);
+    }
+
+    try {
+      const pageProtocol = window.location.protocol;
+      const baseProtocol = new URL(baseUrl).protocol;
+      if (pageProtocol === 'https:' && baseProtocol === 'http:') {
+        hints.push('Mixed Content: a página está em HTTPS e o Xtream em HTTP.');
+      }
+    } catch {
+      // Ignorado: URL inválida ou ambiente sem window.
+    }
+
+    const hintText = hints.length ? ` Dicas: ${hints.join(' | ')}` : '';
+    return `Falha ao consultar Xtream em ${baseUrl || 'URL não definida'}. Motivo: ${rawMessage || 'desconhecido'}.${hintText}`;
+  }
+
   private cacheKey(action?: string, extraParams: Record<string, string> = {}) {
     const extras = new URLSearchParams(extraParams).toString();
     return `${xtreamEnv.serverUrl}|${xtreamEnv.username}|${action || 'summary'}|${extras}`;
@@ -37,6 +75,11 @@ class XtreamClient {
         throw new Error(`Falha ao consultar Xtream (${response.status})`);
       }
       return response.json();
+    } catch (error) {
+      if (error instanceof DOMException && error.name === 'AbortError') {
+        throw new Error(`Tempo esgotado ao consultar Xtream (${timeoutMs}ms).`);
+      }
+      throw error;
     } finally {
       window.clearTimeout(timeoutId);
     }
@@ -72,10 +115,13 @@ class XtreamClient {
 
     const baseUrl = this.normalizeBaseUrl(xtreamEnv.serverUrl);
     const url = `${baseUrl}/player_api.php?${params.toString()}`;
-    const data = await this.fetchWithTimeout(url, xtreamEnv.timeoutMs);
-
-    this.cache.set(key, { data, expiresAt: now + xtreamEnv.cacheTtlMs });
-    return data as T;
+    try {
+      const data = await this.fetchWithTimeout(url, xtreamEnv.timeoutMs);
+      this.cache.set(key, { data, expiresAt: now + xtreamEnv.cacheTtlMs });
+      return data as T;
+    } catch (error) {
+      throw new Error(this.buildErrorMessage(error, baseUrl, xtreamEnv.timeoutMs));
+    }
   }
 
   async getSummary() {

@@ -82,7 +82,7 @@ export function SearchModal() {
         {/* Conteúdo do modal com resultados. */}
         <div className="p-4 md:p-6 max-h-[75vh] overflow-y-auto">
           {loading && <CatalogLoader variant="grid" />}
-          {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+          {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
           {!loading && !error && (
             <ContentGrid title="Catálogo" content={filteredContent} viewMode="grid" />
           )}

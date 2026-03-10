@@ -58,7 +58,7 @@ export function SearchPage() {
       </section>
 
       {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
       {!loading && !error && (
         <ContentGrid title="Resultados" content={filteredContent} viewMode={viewMode} />
       )}

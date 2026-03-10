@@ -32,7 +32,7 @@ export function Movies() {
 
       {/* Página dedicada para filmes no padrão de grade. */}
       {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
       {!loading && !error && (
         <>
           <CategorySelect

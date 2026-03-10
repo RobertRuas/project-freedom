@@ -15,7 +15,7 @@ export function Home() {
 
       {/* Home composta por seções independentes para facilitar evolução por categoria. */}
       {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
       {!loading && !error && (
         <>
           <ContentGrid title="TV ao Vivo" content={liveGrid.slice(0, limit)} viewMode={viewMode} />

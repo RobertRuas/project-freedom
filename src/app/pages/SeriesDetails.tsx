@@ -49,7 +49,7 @@ export function SeriesDetails() {
   }
 
   if (catalogError || error) {
-    return <p className="text-red-400 text-sm">Erro: {catalogError || error}</p>;
+    return <p className="text-red-400 text-sm whitespace-pre-line">Erro: {catalogError || error}</p>;
   }
 
   if (!series || !detail) {

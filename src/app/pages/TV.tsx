@@ -32,7 +32,7 @@ export function TV() {
 
       {/* Página dedicada para conteúdos de TV no padrão de grade. */}
       {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
       {!loading && !error && (
         <>
           <CategorySelect
