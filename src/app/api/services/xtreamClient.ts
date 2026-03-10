@@ -19,7 +19,25 @@ class XtreamClient {
   private cache = new Map<string, { expiresAt: number; data: unknown }>();
 
   private normalizeBaseUrl(serverUrl: string) {
-    return String(serverUrl || '').trim().replace(/\/+$/, '');
+    let normalized = String(serverUrl || '').trim().replace(/\/+$/, '');
+
+    /**
+     * Se a aplicação estiver em HTTPS, tentamos forçar HTTPS no Xtream
+     * para evitar Mixed Content (bloqueio do navegador).
+     */
+    try {
+      if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+        const parsed = new URL(normalized);
+        if (parsed.protocol === 'http:') {
+          parsed.protocol = 'https:';
+          normalized = parsed.toString().replace(/\/+$/, '');
+        }
+      }
+    } catch {
+      // Ignorado: URL inválida.
+    }
+
+    return normalized;
   }
 
   /**
