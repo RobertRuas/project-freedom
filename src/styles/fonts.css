@@ -1,0 +1,7 @@
+/**
+ * Tipografia padrão da aplicação.
+ * Versão sem dependência externa para máxima compatibilidade em TV.
+ */
+:root {
+  --font-app: "Segoe UI", "Helvetica Neue", Helvetica, Arial, sans-serif;
+}

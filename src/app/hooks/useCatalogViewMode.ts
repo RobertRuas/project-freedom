@@ -1,0 +1,39 @@
+import { useEffect, useState } from 'react';
+
+export type CatalogViewMode = 'grid' | 'list';
+
+/**
+ * Controla o modo de exibição de catálogo por página.
+ * O valor é salvo em sessionStorage para durar durante a sessão atual.
+ */
+export function useCatalogViewMode(storageKey: string) {
+  const [viewMode, setViewMode] = useState<CatalogViewMode>(() => {
+    if (typeof window === 'undefined') {
+      return 'grid';
+    }
+
+    try {
+      const storedValue = window.sessionStorage.getItem(storageKey);
+      return storedValue === 'list' ? 'list' : 'grid';
+    } catch {
+      return 'grid';
+    }
+  });
+
+  useEffect(() => {
+    try {
+      window.sessionStorage.setItem(storageKey, viewMode);
+    } catch {
+      // Alguns browsers de TV podem restringir sessionStorage.
+    }
+  }, [storageKey, viewMode]);
+
+  const toggleViewMode = () => {
+    setViewMode((current) => (current === 'grid' ? 'list' : 'grid'));
+  };
+
+  return {
+    viewMode,
+    toggleViewMode,
+  };
+}
