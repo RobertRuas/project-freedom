@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { X } from 'lucide-react';
+import Hls from 'hls.js';
 
 export function PlayerModal() {
   const navigate = useNavigate();
@@ -8,12 +9,17 @@ export function PlayerModal() {
   const [searchParams] = useSearchParams();
   const containerRef = useRef<HTMLDivElement>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const hlsRef = useRef<Hls | null>(null);
 
   const title = searchParams.get('title') ?? 'Reprodução';
   const kind = searchParams.get('kind') ?? 'conteúdo';
   const sourceParam = searchParams.get('src');
 
   const safeHash = useMemo(() => hash ?? 'indisponivel', [hash]);
+  const resolvedSource = useMemo(
+    () => (sourceParam ? decodeURIComponent(sourceParam) : '/videos/sample.mp4'),
+    [sourceParam]
+  );
 
   useEffect(() => {
     const container = containerRef.current;
@@ -63,6 +69,51 @@ export function PlayerModal() {
     void requestFullscreen();
   }, []);
 
+  useEffect(() => {
+    const video = videoRef.current;
+
+    if (!video) {
+      return;
+    }
+
+    // Limpa instância anterior do HLS se existir.
+    if (hlsRef.current) {
+      hlsRef.current.destroy();
+      hlsRef.current = null;
+    }
+
+    if (!resolvedSource) {
+      return;
+    }
+
+    /**
+     * Suporte a HLS (.m3u8):
+     * - Safari toca nativamente.
+     * - Outros navegadores usam hls.js.
+     */
+    const isHls = resolvedSource.includes('.m3u8');
+    const canPlayHls = video.canPlayType('application/vnd.apple.mpegurl') !== '';
+
+    if (isHls && !canPlayHls && Hls.isSupported()) {
+      const hls = new Hls({
+        enableWorker: true,
+        lowLatencyMode: true
+      });
+      hls.loadSource(resolvedSource);
+      hls.attachMedia(video);
+      hlsRef.current = hls;
+    } else {
+      video.src = resolvedSource;
+    }
+
+    return () => {
+      if (hlsRef.current) {
+        hlsRef.current.destroy();
+        hlsRef.current = null;
+      }
+    };
+  }, [resolvedSource]);
+
   const closePlayer = () => {
     /**
      * Fecha o player sem recarregar a aplicação.
@@ -104,7 +155,7 @@ export function PlayerModal() {
             preload="metadata"
             autoPlay
             playsInline
-            src={sourceParam ? decodeURIComponent(sourceParam) : '/videos/sample.mp4'}
+            src={resolvedSource}
           />
         </div>
       </section>
