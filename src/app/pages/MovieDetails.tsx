@@ -1,12 +1,21 @@
 import { Link, useParams } from 'react-router';
 import { ArrowLeft, Play, Heart } from 'lucide-react';
-import { moviesGridContent } from '../data/content';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
+import { useXtreamCatalog } from '../api';
 
 export function MovieDetails() {
   const { hash } = useParams();
+  const { loading, error, vodGrid } = useXtreamCatalog();
 
-  const movie = moviesGridContent.find((item) => item.routeHash === hash);
+  const movie = vodGrid.find((item) => item.routeHash === hash);
+
+  if (loading) {
+    return <p className="text-white/60 text-sm">Carregando filme...</p>;
+  }
+
+  if (error) {
+    return <p className="text-red-400 text-sm">Erro: {error}</p>;
+  }
 
   if (!movie) {
     return (
@@ -62,13 +71,13 @@ export function MovieDetails() {
           </div>
 
           <div className="flex flex-wrap gap-3 mt-6">
-            <button
-              type="button"
+            <Link
+              to={`/player/${movie.routeHash}?title=${encodeURIComponent(movie.title)}&kind=filme${movie.playUrl ? `&src=${encodeURIComponent(movie.playUrl)}` : ''}`}
               className="inline-flex items-center gap-2 rounded-md bg-white text-black px-4 py-2 text-sm font-semibold"
             >
               <Play className="w-4 h-4 fill-current" />
               Assistir
-            </button>
+            </Link>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-md bg-black/70 text-white px-4 py-2 text-sm border border-white/10"

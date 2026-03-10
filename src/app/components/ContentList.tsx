@@ -7,9 +7,11 @@ interface ContentListProps {
   title: string;
   content: ListContentItem[];
   viewMode?: 'grid' | 'list';
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-export function ContentList({ title, content, viewMode = 'grid' }: ContentListProps) {
+export function ContentList({ title, content, viewMode = 'grid', hasMore, onLoadMore }: ContentListProps) {
   const navigate = useNavigate();
 
   const openPlayer = (item: ListContentItem) => {
@@ -18,7 +20,8 @@ export function ContentList({ title, content, viewMode = 'grid' }: ContentListPr
     }
 
     const titleParam = encodeURIComponent(item.title);
-    navigate(`/player/${item.routeHash}?title=${titleParam}&kind=canal`);
+    const playParam = item.playUrl ? `&src=${encodeURIComponent(item.playUrl)}` : '';
+    navigate(`/player/${item.routeHash}?title=${titleParam}&kind=canal${playParam}`);
   };
 
   return (
@@ -137,12 +140,15 @@ export function ContentList({ title, content, viewMode = 'grid' }: ContentListPr
         </div>
       )}
 
-      <button
-        type="button"
-        className="mt-4 md:mt-6 text-white/70 hover:text-white text-sm md:text-base font-medium"
-      >
-        Ver mais →
-      </button>
+      {hasMore && onLoadMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          className="mt-4 md:mt-6 text-white/70 hover:text-white text-sm md:text-base font-medium"
+        >
+          Ver mais →
+        </button>
+      )}
     </div>
   );
 }

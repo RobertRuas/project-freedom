@@ -11,6 +11,7 @@ export function PlayerModal() {
 
   const title = searchParams.get('title') ?? 'Reprodução';
   const kind = searchParams.get('kind') ?? 'conteúdo';
+  const sourceParam = searchParams.get('src');
 
   const safeHash = useMemo(() => hash ?? 'indisponivel', [hash]);
 
@@ -103,7 +104,7 @@ export function PlayerModal() {
             preload="metadata"
             autoPlay
             playsInline
-            src="/videos/sample.mp4"
+            src={sourceParam ? decodeURIComponent(sourceParam) : '/videos/sample.mp4'}
           />
         </div>
       </section>

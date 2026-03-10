@@ -14,6 +14,15 @@ export interface GridContentItem {
   subtitle?: string;
   type?: ContentType;
   /**
+   * URL direta de reproducao quando disponivel (Xtream).
+   */
+  playUrl?: string;
+  /**
+   * Categoria do item no Xtream.
+   * Usamos string para simplificar comparações no filtro.
+   */
+  categoryId?: string;
+  /**
    * Hash dinâmico para rotas de detalhe.
    * Exemplo: /filmes/{hash}
    */
@@ -31,5 +40,14 @@ export interface ListContentItem {
   channel?: string;
   time?: string;
   live?: boolean;
+  /**
+   * URL direta de reproducao quando disponivel (Xtream).
+   */
+  playUrl?: string;
+  /**
+   * Categoria do item no Xtream.
+   * Usamos string para simplificar comparações no filtro.
+   */
+  categoryId?: string;
   routeHash?: string;
 }

@@ -1,29 +1,37 @@
 import { useMemo, useState } from 'react';
 import { ContentGrid } from '../components/ContentGrid';
-import { allGridContent } from '../data/content';
 import { FeatureGrid } from '../components/FeatureGrid';
 import { searchFeatures } from '../data/feature';
 import { CatalogPageHeader } from '../components/CatalogPageHeader';
 import { useCatalogViewMode } from '../hooks/useCatalogViewMode';
+import { useXtreamCatalog } from '../api';
+import { CatalogLoader } from '../components/CatalogLoader';
 
 export function SearchPage() {
   const [term, setTerm] = useState('');
   const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:search');
+  const { loading, error, liveGrid, vodGrid, seriesGrid } = useXtreamCatalog();
+  const allGridContent = useMemo(
+    () => [...liveGrid, ...vodGrid, ...seriesGrid],
+    [liveGrid, vodGrid, seriesGrid]
+  );
 
   const filteredContent = useMemo(() => {
     const normalizedTerm = term.trim().toLowerCase();
 
     if (!normalizedTerm) {
-      return allGridContent;
+      // Sem termo, limitamos para manter a busca leve.
+      return allGridContent.slice(0, 30);
     }
 
-    return allGridContent.filter((item) => {
+    const filtered = allGridContent.filter((item) => {
       const titleMatches = item.title.toLowerCase().includes(normalizedTerm);
       const subtitleMatches = item.subtitle?.toLowerCase().includes(normalizedTerm) ?? false;
 
       return titleMatches || subtitleMatches;
     });
-  }, [term]);
+    return filtered.slice(0, 30);
+  }, [term, allGridContent]);
 
   return (
     <div>
@@ -49,7 +57,11 @@ export function SearchPage() {
         />
       </section>
 
-      <ContentGrid title="Resultados" content={filteredContent} viewMode={viewMode} />
+      {loading && <CatalogLoader variant={viewMode} />}
+      {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+      {!loading && !error && (
+        <ContentGrid title="Resultados" content={filteredContent} viewMode={viewMode} />
+      )}
     </div>
   );
 }

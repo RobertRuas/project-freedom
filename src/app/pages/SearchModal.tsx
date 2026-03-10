@@ -1,8 +1,9 @@
 import { useMemo, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { X, Search } from 'lucide-react';
-import { allGridContent } from '../data/content';
 import { ContentGrid } from '../components/ContentGrid';
+import { useXtreamCatalog } from '../api';
+import { CatalogLoader } from '../components/CatalogLoader';
 
 /**
  * Página modal de resultados de busca.
@@ -14,20 +15,28 @@ export function SearchModal() {
   const initialTerm = searchParams.get('term') ?? '';
   const [term, setTerm] = useState(initialTerm);
 
+  const { loading, error, liveGrid, vodGrid, seriesGrid } = useXtreamCatalog();
+  const allGridContent = useMemo(
+    () => [...liveGrid, ...vodGrid, ...seriesGrid],
+    [liveGrid, vodGrid, seriesGrid]
+  );
+
   const filteredContent = useMemo(() => {
     const normalizedTerm = term.trim().toLowerCase();
 
     if (!normalizedTerm) {
-      return allGridContent;
+      // Sem termo, mostramos apenas o primeiro lote para manter o modal leve.
+      return allGridContent.slice(0, 30);
     }
 
-    return allGridContent.filter((item) => {
+    const filtered = allGridContent.filter((item) => {
       const titleMatches = item.title.toLowerCase().includes(normalizedTerm);
       const subtitleMatches = item.subtitle?.toLowerCase().includes(normalizedTerm) ?? false;
 
       return titleMatches || subtitleMatches;
     });
-  }, [term]);
+    return filtered.slice(0, 30);
+  }, [term, allGridContent]);
 
   const closeModal = () => {
     if (window.history.length > 1) {
@@ -72,7 +81,11 @@ export function SearchModal() {
 
         {/* Conteúdo do modal com resultados. */}
         <div className="p-4 md:p-6 max-h-[75vh] overflow-y-auto">
-          <ContentGrid title="Catálogo" content={filteredContent} viewMode="grid" />
+          {loading && <CatalogLoader variant="grid" />}
+          {error && <p className="text-red-400 text-sm">Erro: {error}</p>}
+          {!loading && !error && (
+            <ContentGrid title="Catálogo" content={filteredContent} viewMode="grid" />
+          )}
         </div>
       </section>
     </div>

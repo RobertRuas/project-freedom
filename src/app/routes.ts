@@ -11,6 +11,7 @@ import { MovieDetails } from './pages/MovieDetails';
 import { SeriesDetails } from './pages/SeriesDetails';
 import { PlayerModal } from './pages/PlayerModal';
 import { SearchModal } from './pages/SearchModal';
+import { ApiPage } from './pages/ApiPage';
 
 // Mapa central de rotas da aplicação.
 // Novas páginas devem ser registradas aqui como filhas do Layout.
@@ -30,6 +31,7 @@ export const router = createBrowserRouter([
       { path: 'configuracoes', Component: SettingsPage },
       { path: 'perfil', Component: ProfilePage },
       { path: 'player/:hash', Component: PlayerModal },
+      { path: 'api', Component: ApiPage },
     ],
   },
 ]);

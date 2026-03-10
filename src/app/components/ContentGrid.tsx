@@ -7,9 +7,11 @@ interface ContentGridProps {
   title: string;
   content: GridContentItem[];
   viewMode?: 'grid' | 'list';
+  hasMore?: boolean;
+  onLoadMore?: () => void;
 }
 
-export function ContentGrid({ title, content, viewMode = 'grid' }: ContentGridProps) {
+export function ContentGrid({ title, content, viewMode = 'grid', hasMore, onLoadMore }: ContentGridProps) {
   const navigate = useNavigate();
 
   const openContent = (item: GridContentItem) => {
@@ -25,7 +27,8 @@ export function ContentGrid({ title, content, viewMode = 'grid' }: ContentGridPr
     if (item.type === 'movie' || item.type === 'tv') {
       const titleParam = encodeURIComponent(item.title);
       const kindParam = item.type === 'tv' ? 'canal' : 'filme';
-      navigate(`/player/${item.routeHash}?title=${titleParam}&kind=${kindParam}`);
+      const playParam = item.playUrl ? `&src=${encodeURIComponent(item.playUrl)}` : '';
+      navigate(`/player/${item.routeHash}?title=${titleParam}&kind=${kindParam}${playParam}`);
     }
   };
 
@@ -154,12 +157,15 @@ export function ContentGrid({ title, content, viewMode = 'grid' }: ContentGridPr
         </div>
       )}
 
-      <button
-        type="button"
-        className="mt-4 md:mt-6 text-white/70 hover:text-white text-sm md:text-base font-medium"
-      >
-        Ver mais →
-      </button>
+      {hasMore && onLoadMore && (
+        <button
+          type="button"
+          onClick={onLoadMore}
+          className="mt-4 md:mt-6 text-white/70 hover:text-white text-sm md:text-base font-medium"
+        >
+          Ver mais →
+        </button>
+      )}
     </div>
   );
 }

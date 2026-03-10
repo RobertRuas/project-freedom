@@ -1,41 +1,58 @@
 import { useMemo, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router';
-import { ArrowLeft, Play, ChevronDown, ChevronRight, CheckCircle2, Heart } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronRight, Heart } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
-import { seriesDetailsByHash, type SeriesSeason } from '../data/series-details';
-
-const getSeasonProgress = (season: SeriesSeason): number => {
-  if (!season.episodes.length) {
-    return 0;
-  }
-
-  const total = season.episodes.reduce((sum, episode) => sum + episode.progress, 0);
-  return Math.round(total / season.episodes.length);
-};
+import { CatalogLoader } from '../components/CatalogLoader';
+import { useXtreamCatalog, useXtreamSeriesDetail } from '../api';
+import { buildPlayUrl } from '../api/services/xtreamMapper';
 
 export function SeriesDetails() {
   const { hash } = useParams();
   const navigate = useNavigate();
+  const { loading: catalogLoading, error: catalogError, seriesGrid } = useXtreamCatalog();
+  const series = seriesGrid.find((item) => item.routeHash === hash);
+  const { loading, error, detail } = useXtreamSeriesDetail(hash);
+  const [openSeason, setOpenSeason] = useState<string | number | null>(null);
 
-  const details = hash ? seriesDetailsByHash[hash] : undefined;
+  const seasons = useMemo(() => detail?.seasons || [], [detail]);
+  const info = (detail?.info || {}) as Record<string, unknown>;
 
-  const [openSeasonId, setOpenSeasonId] = useState<string | null>(details?.seasons[0]?.id ?? null);
+  /**
+   * Seleciona a sinopse disponível no retorno do Xtream.
+   * O serviço pode variar nomes de campo dependendo do painel.
+   */
+  const synopsis =
+    String(info.plot || info.overview || info.description || '').trim() ||
+    'Sinopse não disponível.';
 
-  const totalProgress = useMemo(() => {
-    if (!details) {
-      return 0;
-    }
+  /**
+   * Informações extras úteis, exibidas somente quando presentes.
+   */
+  const extraInfo = [
+    { label: 'Gênero', value: info.genre },
+    { label: 'Elenco', value: info.cast },
+    { label: 'Direção', value: info.director },
+    { label: 'Ano', value: info.year },
+    { label: 'Classificação', value: info.rating },
+    { label: 'Lançamento', value: info.releaseDate || info.releasedate }
+  ].filter((item) => item.value != null && String(item.value).trim() !== '');
 
-    const seasons = details.seasons;
-    if (!seasons.length) {
-      return 0;
-    }
+  if (catalogLoading || loading) {
+    return (
+      <section className="max-w-6xl mx-auto">
+        <div className="mb-6">
+          <CatalogLoader variant="grid" />
+        </div>
+        <CatalogLoader variant="list" />
+      </section>
+    );
+  }
 
-    const sum = seasons.reduce((acc, season) => acc + getSeasonProgress(season), 0);
-    return Math.round(sum / seasons.length);
-  }, [details]);
+  if (catalogError || error) {
+    return <p className="text-red-400 text-sm">Erro: {catalogError || error}</p>;
+  }
 
-  if (!details) {
+  if (!series || !detail) {
     return (
       <section className="max-w-4xl mx-auto">
         <Link
@@ -48,9 +65,7 @@ export function SeriesDetails() {
 
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 md:p-8">
           <h1 className="text-white text-2xl md:text-3xl font-semibold mb-2">Série não encontrada</h1>
-          <p className="text-white/70 text-sm md:text-base">
-            Esse hash é dinâmico e muda a cada recarga completa da aplicação.
-          </p>
+          <p className="text-white/70 text-sm md:text-base">Não foi possível localizar essa série.</p>
         </div>
       </section>
     );
@@ -66,123 +81,119 @@ export function SeriesDetails() {
         Voltar para Séries
       </Link>
 
+      {/* Cabeçalho com dados principais da série. */}
       <article className="rounded-xl border border-white/10 bg-white/5 p-4 md:p-6 mb-6">
         <div className="grid grid-cols-1 md:grid-cols-[220px_1fr] gap-4 md:gap-6">
           <div className="relative aspect-[2/3] rounded-lg overflow-hidden bg-gray-800 max-w-[220px]">
-            <ImageWithFallback src={details.imageUrl} alt={details.seriesTitle} className="w-full h-full object-cover" />
+            <ImageWithFallback src={series.imageUrl} alt={series.title} className="w-full h-full object-cover" />
           </div>
 
           <div>
-            <div className="flex items-start justify-between gap-3 mb-2">
-              <h1 className="text-white text-2xl md:text-4xl font-semibold">{details.seriesTitle}</h1>
-              <button type="button" aria-label="Favoritar série" className="text-white/70 hover:text-white">
-                <Heart className={`w-5 h-5 ${details.isFavorite ? 'fill-current text-red-400' : ''}`} />
+            <div className="flex items-start justify-between gap-4">
+              <h1 className="text-white text-2xl md:text-4xl font-semibold">{series.title}</h1>
+              <button
+                type="button"
+                aria-label="Favoritar série"
+                className="inline-flex items-center justify-center rounded-full border border-white/10 bg-black/40 p-2 text-white/70 hover:text-white"
+              >
+                <Heart className="w-4 h-4" />
               </button>
             </div>
 
-            <p className="text-white/70 text-sm md:text-base mb-2">{details.subtitle ?? 'Série disponível'}</p>
-            <p className="text-white/65 text-sm md:text-base mb-4">{details.synopsis}</p>
+            <p className="text-white/70 text-sm md:text-base mt-3">{synopsis}</p>
 
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
-              <div className="rounded-lg bg-black/40 border border-white/10 p-2.5">
-                <p className="text-white/50 text-[11px] mb-1">Ano</p>
-                <p className="text-white text-sm">{details.year}</p>
+            {extraInfo.length > 0 && (
+              <div className="mt-4 flex flex-wrap gap-2">
+                {extraInfo.map((item) => (
+                  <span
+                    key={item.label}
+                    className="inline-flex items-center gap-1.5 rounded-full border border-white/10 bg-black/40 px-3 py-1 text-[11px] text-white/70"
+                  >
+                    <span className="text-white/50">{item.label}:</span>
+                    <span className="text-white">{String(item.value)}</span>
+                  </span>
+                ))}
               </div>
-              <div className="rounded-lg bg-black/40 border border-white/10 p-2.5">
-                <p className="text-white/50 text-[11px] mb-1">Gênero</p>
-                <p className="text-white text-sm">{details.genre}</p>
-              </div>
-              <div className="rounded-lg bg-black/40 border border-white/10 p-2.5">
-                <p className="text-white/50 text-[11px] mb-1">Classificação</p>
-                <p className="text-white text-sm">{details.rating}</p>
-              </div>
-              <div className="rounded-lg bg-black/40 border border-white/10 p-2.5">
-                <p className="text-white/50 text-[11px] mb-1">Elenco</p>
-                <p className="text-white text-xs">{details.cast}</p>
-              </div>
-            </div>
-
-            <div className="rounded-lg bg-black/40 border border-white/10 p-3">
-              <div className="flex items-center justify-between mb-2">
-                <p className="text-white text-sm">Progresso total da série</p>
-                <div className="flex items-center gap-2">
-                  {totalProgress === 100 && <CheckCircle2 className="w-4 h-4 text-green-400" />}
-                  <span className="text-white/70 text-xs">{totalProgress}%</span>
-                </div>
-              </div>
-              <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                <div className="h-full bg-emerald-700/85" style={{ width: `${totalProgress}%` }} />
-              </div>
-            </div>
+            )}
           </div>
         </div>
       </article>
 
+      {/* Temporadas e episódios. */}
       <div className="space-y-4">
-        {details.seasons.map((season) => {
-          const isOpen = openSeasonId === season.id;
-          const seasonProgress = getSeasonProgress(season);
+        {seasons.map((season) => {
+          const isOpen = openSeason === season.season;
 
           return (
-            <section key={season.id} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
+            <section key={String(season.season)} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
               <button
                 type="button"
-                onClick={() => setOpenSeasonId((current) => (current === season.id ? null : season.id))}
+                onClick={() => setOpenSeason((current) => (current === season.season ? null : season.season))}
                 className="w-full text-left p-4 md:p-5 hover:bg-white/5"
               >
-                <div className="flex items-start justify-between gap-3 mb-2">
+                <div className="flex items-center justify-between gap-3">
                   <div>
-                    <h2 className="text-white text-lg md:text-xl font-semibold">{season.title}</h2>
-                    <p className="text-white/65 text-sm mt-1">{season.synopsis}</p>
+                    <h2 className="text-white text-lg md:text-xl font-semibold">Temporada {season.season}</h2>
+                    <p className="text-white/60 text-xs md:text-sm mt-1">
+                      {Array.isArray(season.episodes) ? season.episodes.length : 0} episódios
+                    </p>
                   </div>
-
-                  <div className="flex items-center gap-2 text-white/70 text-xs pt-1">
-                    {seasonProgress === 100 && <CheckCircle2 className="w-4 h-4 text-green-400" />}
-                    <span>{seasonProgress}%</span>
-                    {isOpen ? <ChevronDown className="w-4 h-4" /> : <ChevronRight className="w-4 h-4" />}
-                  </div>
-                </div>
-
-                <div className="h-2 rounded-full bg-white/10 overflow-hidden">
-                  <div className="h-full bg-white" style={{ width: `${seasonProgress}%` }} />
+                  {isOpen ? <ChevronDown className="w-4 h-4 text-white/70" /> : <ChevronRight className="w-4 h-4 text-white/70" />}
                 </div>
               </button>
 
               {isOpen && (
                 <div className="px-4 md:px-5 pb-4 md:pb-5 space-y-2.5">
-                  {season.episodes.map((episode, index) => (
-                    <article key={episode.id} className="rounded-lg border border-white/10 bg-black/30 p-2.5 md:p-3">
-                      <div className="flex items-center justify-between gap-3">
-                        <div className="min-w-0 flex-1">
-                          <div className="flex items-center gap-1.5 mb-1">
-                            <h3 className="text-white text-xs md:text-sm font-semibold truncate">{`Episódio ${index + 1}`}</h3>
-                            {episode.watched && <CheckCircle2 className="w-4 h-4 text-green-400 flex-shrink-0" />}
-                          </div>
+                  {(Array.isArray(season.episodes) ? season.episodes : []).map((episode, index) => {
+                    const streamId = episode.stream_id || episode.id || episode.episode_id;
+                    const extension =
+                      episode.container_extension ||
+                      episode.info?.container_extension ||
+                      episode.episode_info?.container_extension ||
+                      'mp4';
+                    const playUrl = streamId ? buildPlayUrl('series', String(streamId), String(extension)) : '';
 
-                          <div>
-                            <div className="flex items-center justify-between mb-1">
-                              <span className="text-white/45 text-[10px]">{episode.duration}</span>
-                            </div>
-                            <div className="h-1.5 rounded-full bg-white/10 overflow-hidden">
-                              <div className="h-full bg-zinc-600/80" style={{ width: `${episode.progress}%` }} />
-                            </div>
+                    return (
+                      // Episódio inteiro clicável: ao clicar abrimos o player com o stream correto.
+                      <article
+                        key={String(streamId || index)}
+                        className={`rounded-lg border border-white/10 bg-black/30 p-2.5 md:p-3 ${
+                          streamId ? 'cursor-pointer hover:bg-white/5' : 'opacity-60'
+                        }`}
+                        role={streamId ? 'button' : undefined}
+                        tabIndex={streamId ? 0 : undefined}
+                        onClick={() => {
+                          if (!streamId) return;
+                          const titleParam = encodeURIComponent(series.title);
+                          const kindParam = encodeURIComponent(`episodio ${index + 1}`);
+                          const playParam = playUrl ? `&src=${encodeURIComponent(playUrl)}` : '';
+                          navigate(`/player/${streamId}?title=${titleParam}&kind=${kindParam}${playParam}`);
+                        }}
+                        onKeyDown={(event) => {
+                          if (!streamId) return;
+                          if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            const titleParam = encodeURIComponent(series.title);
+                            const kindParam = encodeURIComponent(`episodio ${index + 1}`);
+                            const playParam = playUrl ? `&src=${encodeURIComponent(playUrl)}` : '';
+                            navigate(`/player/${streamId}?title=${titleParam}&kind=${kindParam}${playParam}`);
+                          }
+                        }}
+                      >
+                        <div className="flex items-center justify-between gap-3">
+                          <div className="min-w-0">
+                            <h3 className="text-white text-xs md:text-sm font-semibold truncate">
+                              Episódio {index + 1}
+                            </h3>
+                            <p className="text-white/50 text-[10px] mt-1">
+                              {streamId ? 'Disponível para reprodução' : 'Indisponível'}
+                            </p>
                           </div>
+                          <span className="text-[10px] text-white/40">Abrir</span>
                         </div>
-
-                        <button
-                          type="button"
-                          onClick={() => {
-                            const title = encodeURIComponent(`${details.seriesTitle} - ${episode.title}`);
-                            navigate(`/player/${episode.playerHash}?title=${title}&kind=episodio`);
-                          }}
-                          className="inline-flex items-center gap-1.5 rounded-md bg-white text-black px-2.5 py-1 text-[11px] md:text-xs font-semibold self-start"
-                        >
-                          <Play className="w-3 h-3 fill-current" />
-                          Assistir
-                        </button>
-                      </div>
-                    </article>
-                  ))}
+                      </article>
+                    );
+                  })}
                 </div>
               )}
             </section>
