@@ -3,11 +3,33 @@ import type { XtreamLiveStream, XtreamSeriesItem, XtreamVodStream } from '../typ
 import { xtreamEnv } from './xtreamEnv';
 
 /**
+ * Normaliza a URL base usada para reprodução.
+ * Quando a aplicação está em HTTPS, forçamos HTTPS para evitar Mixed Content.
+ */
+const normalizePlayBaseUrl = (serverUrl: string) => {
+  let normalized = String(serverUrl || '').trim().replace(/\/+$/, '');
+
+  try {
+    if (typeof window !== 'undefined' && window.location.protocol === 'https:') {
+      const parsed = new URL(normalized);
+      if (parsed.protocol === 'http:') {
+        parsed.protocol = 'https:';
+        normalized = parsed.toString().replace(/\/+$/, '');
+      }
+    }
+  } catch {
+    // Ignorado: URL inválida.
+  }
+
+  return normalized;
+};
+
+/**
  * Construtor de URL de reproducao por tipo.
  * Essa URL segue o padrao Xtream: /live, /movie, /series.
  */
 const createPlayUrl = (type: 'live' | 'vod' | 'series', id: string, extension?: string) => {
-  const baseUrl = String(xtreamEnv.serverUrl || '').replace(/\/+$/, '');
+  const baseUrl = normalizePlayBaseUrl(xtreamEnv.serverUrl || '');
   const ext = extension || 'mp4';
 
   if (type === 'live') {
