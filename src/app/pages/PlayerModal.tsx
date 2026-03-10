@@ -20,6 +20,11 @@ export function PlayerModal() {
     () => (sourceParam ? decodeURIComponent(sourceParam) : '/videos/sample.mp4'),
     [sourceParam]
   );
+  const proxiedSource = useMemo(() => {
+    if (!resolvedSource) return resolvedSource;
+    if (!resolvedSource.includes('.m3u8')) return resolvedSource;
+    return `/api/xtream/stream?url=${encodeURIComponent(resolvedSource)}`;
+  }, [resolvedSource]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -99,11 +104,11 @@ export function PlayerModal() {
         enableWorker: true,
         lowLatencyMode: true
       });
-      hls.loadSource(resolvedSource);
+      hls.loadSource(proxiedSource);
       hls.attachMedia(video);
       hlsRef.current = hls;
     } else {
-      video.src = resolvedSource;
+      video.src = proxiedSource;
     }
 
     return () => {
@@ -112,7 +117,7 @@ export function PlayerModal() {
         hlsRef.current = null;
       }
     };
-  }, [resolvedSource]);
+  }, [resolvedSource, proxiedSource]);
 
   const closePlayer = () => {
     /**
@@ -155,7 +160,7 @@ export function PlayerModal() {
             preload="metadata"
             autoPlay
             playsInline
-            src={resolvedSource}
+            src={proxiedSource}
           />
         </div>
       </section>
