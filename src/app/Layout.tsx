@@ -1,5 +1,6 @@
 import { Outlet } from 'react-router';
 import { Sidebar } from './components/Sidebar';
+import { PlayerOverlay } from './components/PlayerOverlay';
 
 export function Layout() {
   /**
@@ -24,6 +25,9 @@ export function Layout() {
       >
         <Outlet />
       </main>
+
+      {/* Overlay global do player para manter a rota pai montada. */}
+      <PlayerOverlay />
     </div>
   );
 }

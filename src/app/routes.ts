@@ -9,7 +9,6 @@ import { SettingsPage } from './pages/SettingsPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { MovieDetails } from './pages/MovieDetails';
 import { SeriesDetails } from './pages/SeriesDetails';
-import { PlayerModal } from './pages/PlayerModal';
 import { SearchModal } from './pages/SearchModal';
 import { ApiPage } from './pages/ApiPage';
 
@@ -23,14 +22,13 @@ export const router = createBrowserRouter([
       { index: true, Component: Home },
       { path: 'live-tv', Component: LiveTV },
       { path: 'filmes', Component: Movies },
-      { path: 'filmes/:hash', Component: MovieDetails },
+      { path: 'filmes/:id', Component: MovieDetails },
       { path: 'series', Component: Series },
-      { path: 'series/:hash', Component: SeriesDetails },
+      { path: 'series/:id', Component: SeriesDetails },
       { path: 'buscar', Component: SearchPage },
       { path: 'buscar-modal', Component: SearchModal },
       { path: 'configuracoes', Component: SettingsPage },
       { path: 'perfil', Component: ProfilePage },
-      { path: 'player/:hash', Component: PlayerModal },
       { path: 'api', Component: ApiPage },
     ],
   },

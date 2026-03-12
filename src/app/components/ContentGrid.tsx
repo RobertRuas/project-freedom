@@ -1,7 +1,8 @@
 import { Heart, Tv, Film, Library, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import type { ContentType, GridContentItem } from '../types/content';
+import { buildPlayerModalSearch } from '../utils/playerModalSearch';
 
 interface ContentGridProps {
   title: string;
@@ -9,10 +10,24 @@ interface ContentGridProps {
   viewMode?: 'grid' | 'list';
   hasMore?: boolean;
   onLoadMore?: () => void;
+  /**
+   * Define o comportamento de clique:
+   * - player: abre reprodução imediata (padrão do catálogo);
+   * - details: abre página específica do item (usado na busca).
+   */
+  clickBehavior?: 'player' | 'details';
 }
 
-export function ContentGrid({ title, content, viewMode = 'grid', hasMore, onLoadMore }: ContentGridProps) {
+export function ContentGrid({
+  title,
+  content,
+  viewMode = 'grid',
+  hasMore,
+  onLoadMore,
+  clickBehavior = 'player'
+}: ContentGridProps) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const openContent = (item: GridContentItem) => {
     if (!item.routeHash) {
@@ -24,11 +39,44 @@ export function ContentGrid({ title, content, viewMode = 'grid', hasMore, onLoad
       return;
     }
 
+    if (clickBehavior === 'details') {
+      if (item.type === 'movie') {
+        navigate(`/filmes/${item.routeHash}`);
+        return;
+      }
+
+      if (item.type === 'tv') {
+        /**
+         * Canal não possui rota de detalhe dedicada.
+         * Então redirecionamos para o catálogo de TV com o player já aberto.
+         */
+        const nextSearch = buildPlayerModalSearch('', {
+          contentId: item.id,
+          title: item.title,
+          kind: 'canal',
+          src: item.playUrl,
+          streamType: 'live',
+          imageUrl: item.imageUrl
+        });
+        navigate(`/live-tv?${nextSearch}`);
+        return;
+      }
+    }
+
     if (item.type === 'movie' || item.type === 'tv') {
-      const titleParam = encodeURIComponent(item.title);
       const kindParam = item.type === 'tv' ? 'canal' : 'filme';
-      const playParam = item.playUrl ? `&src=${encodeURIComponent(item.playUrl)}` : '';
-      navigate(`/player/${item.routeHash}?title=${titleParam}&kind=${kindParam}${playParam}`);
+      const nextSearch = buildPlayerModalSearch(location.search, {
+        contentId: item.id,
+        title: item.title,
+        kind: kindParam,
+        src: item.playUrl,
+        streamType: item.type === 'tv' ? 'live' : 'vod',
+        imageUrl: item.imageUrl
+      });
+      navigate({
+        pathname: location.pathname,
+        search: `?${nextSearch}`
+      });
     }
   };
 

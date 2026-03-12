@@ -6,17 +6,20 @@ export type CatalogViewMode = 'grid' | 'list';
  * Controla o modo de exibição de catálogo por página.
  * O valor é salvo em sessionStorage para durar durante a sessão atual.
  */
-export function useCatalogViewMode(storageKey: string) {
+export function useCatalogViewMode(storageKey: string, defaultMode: CatalogViewMode = 'grid') {
   const [viewMode, setViewMode] = useState<CatalogViewMode>(() => {
     if (typeof window === 'undefined') {
-      return 'grid';
+      return defaultMode;
     }
 
     try {
       const storedValue = window.sessionStorage.getItem(storageKey);
-      return storedValue === 'list' ? 'list' : 'grid';
+      if (storedValue === 'list' || storedValue === 'grid') {
+        return storedValue;
+      }
+      return defaultMode;
     } catch {
-      return 'grid';
+      return defaultMode;
     }
   });
 

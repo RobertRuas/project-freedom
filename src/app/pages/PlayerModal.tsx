@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef } from 'react';
 import { useNavigate, useParams, useSearchParams } from 'react-router';
 import { X } from 'lucide-react';
 import Hls from 'hls.js';
+import { getContentSession } from '../utils/contentSession';
 
 export function PlayerModal() {
   const navigate = useNavigate();
@@ -11,15 +12,25 @@ export function PlayerModal() {
   const videoRef = useRef<HTMLVideoElement>(null);
   const hlsRef = useRef<Hls | null>(null);
 
-  const title = searchParams.get('title') ?? 'Reprodução';
-  const kind = searchParams.get('kind') ?? 'conteúdo';
+  const contentSessionId = searchParams.get('content');
+  const contentSession = getContentSession(contentSessionId);
+  const title = contentSession?.title ?? searchParams.get('title') ?? 'Reprodução';
+  const kind = contentSession?.kind ?? searchParams.get('kind') ?? 'conteúdo';
   const sourceParam = searchParams.get('src');
+  const hasSessionPayload = Boolean(contentSession?.src);
 
   const safeHash = useMemo(() => hash ?? 'indisponivel', [hash]);
-  const resolvedSource = useMemo(
-    () => (sourceParam ? decodeURIComponent(sourceParam) : '/videos/sample.mp4'),
-    [sourceParam]
-  );
+  const resolvedSource = useMemo(() => {
+    if (contentSession?.src) {
+      return contentSession.src;
+    }
+
+    if (sourceParam) {
+      return decodeURIComponent(sourceParam);
+    }
+
+    return '/videos/sample.mp4';
+  }, [contentSession, sourceParam]);
   const proxiedSource = useMemo(() => {
     if (!resolvedSource) return resolvedSource;
     if (!resolvedSource.includes('.m3u8')) return resolvedSource;
@@ -139,6 +150,11 @@ export function PlayerModal() {
           <div>
             <p className="text-white text-sm md:text-base font-semibold">{decodeURIComponent(title)}</p>
             <p className="text-white/50 text-xs md:text-sm">{kind} • hash {safeHash}</p>
+            {!hasSessionPayload && (
+              <p className="text-white/40 text-[10px] md:text-xs mt-1">
+                Conteúdo expirou. Volte ao catálogo e tente novamente.
+              </p>
+            )}
           </div>
 
           <button

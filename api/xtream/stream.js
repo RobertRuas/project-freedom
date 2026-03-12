@@ -32,10 +32,17 @@ export default async function handler(req, res) {
   }
 
   try {
+    /**
+     * Encaminha cabeçalhos relevantes para vídeo progressivo (Range)
+     * e usa User-Agent de navegador para reduzir bloqueios de edge/CDN.
+     */
     const upstreamResponse = await fetch(targetUrl, {
       headers: {
-        'User-Agent': 'Mozilla/5.0'
-      }
+        'User-Agent': 'Mozilla/5.0',
+        Accept: '*/*',
+        ...(req.headers.range ? { Range: req.headers.range } : {})
+      },
+      redirect: 'follow'
     });
 
     if (!upstreamResponse.ok) {
@@ -55,22 +62,33 @@ export default async function handler(req, res) {
       const playlistText = await upstreamResponse.text();
       const baseUrl = new URL(targetUrl);
 
+      const rewriteUri = (uri) => {
+        try {
+          const resolved = new URL(uri, baseUrl).toString();
+          return `/api/xtream/stream?url=${encodeURIComponent(resolved)}`;
+        } catch {
+          return uri;
+        }
+      };
+
       const rewritten = playlistText
         .split('\n')
         .map((line) => {
           const trimmed = line.trim();
-          if (!trimmed || trimmed.startsWith('#')) {
+          if (!trimmed) {
             return line;
           }
 
-          let resolved;
-          try {
-            resolved = new URL(trimmed, baseUrl).toString();
-          } catch {
+          // Reescreve URIs em tags como EXT-X-KEY, EXT-X-MAP, EXT-X-MEDIA.
+          if (trimmed.startsWith('#') && trimmed.includes('URI="')) {
+            return line.replace(/URI="([^"]+)"/g, (_match, uri) => `URI="${rewriteUri(uri)}"`);
+          }
+
+          if (trimmed.startsWith('#')) {
             return line;
           }
 
-          return `/api/xtream/stream?url=${encodeURIComponent(resolved)}`;
+          return rewriteUri(trimmed);
         })
         .join('\n');
 
@@ -79,9 +97,26 @@ export default async function handler(req, res) {
       return;
     }
 
+    // Repassa cabeçalhos importantes para manter compatibilidade com seek.
+    const passthroughHeaders = [
+      'content-type',
+      'content-length',
+      'content-range',
+      'accept-ranges',
+      'cache-control',
+      'etag',
+      'last-modified'
+    ];
+    passthroughHeaders.forEach((headerName) => {
+      const headerValue = upstreamResponse.headers.get(headerName);
+      if (headerValue) {
+        res.setHeader(headerName, headerValue);
+      }
+    });
+
     const buffer = Buffer.from(await upstreamResponse.arrayBuffer());
     res.setHeader('Content-Type', contentType || 'application/octet-stream');
-    res.status(200).send(buffer);
+    res.status(upstreamResponse.status).send(buffer);
   } catch (error) {
     res.status(500).json({ error: 'Erro ao processar proxy de stream.' });
   }

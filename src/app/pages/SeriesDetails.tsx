@@ -1,17 +1,22 @@
 import { useMemo, useState } from 'react';
-import { Link, useNavigate, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, ChevronDown, ChevronRight, Heart } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { CatalogLoader } from '../components/CatalogLoader';
+import { Progress } from '../components/ui/progress';
 import { useXtreamCatalog, useXtreamSeriesDetail } from '../api';
 import { buildPlayUrl } from '../api/services/xtreamMapper';
+import { buildPlayerModalSearch } from '../utils/playerModalSearch';
+import { savePlayerQueue } from '../utils/playerQueue';
+import { getProgressByContent } from '../utils/playbackState';
 
 export function SeriesDetails() {
-  const { hash } = useParams();
+  const { id } = useParams();
   const navigate = useNavigate();
+  const location = useLocation();
   const { loading: catalogLoading, error: catalogError, seriesGrid } = useXtreamCatalog();
-  const series = seriesGrid.find((item) => item.routeHash === hash);
-  const { loading, error, detail } = useXtreamSeriesDetail(hash);
+  const series = seriesGrid.find((item) => item.routeHash === id);
+  const { loading, error, detail } = useXtreamSeriesDetail(id);
   const [openSeason, setOpenSeason] = useState<string | number | null>(null);
 
   const seasons = useMemo(() => detail?.seasons || [], [detail]);
@@ -36,6 +41,35 @@ export function SeriesDetails() {
     { label: 'Classificação', value: info.rating },
     { label: 'Lançamento', value: info.releaseDate || info.releasedate }
   ].filter((item) => item.value != null && String(item.value).trim() !== '');
+
+  /**
+   * Calcula o progresso agregado por temporada com base no cache local.
+   * Também serve para alimentar o progresso de cada episódio.
+   */
+  const seasonProgressByKey = useMemo(() => {
+    const result: Record<string, { average: number; watched: number; total: number }> = {};
+
+    seasons.forEach((season) => {
+      const episodes = Array.isArray(season.episodes) ? season.episodes : [];
+      const values = episodes
+        .map((episode) => {
+          const episodeId = episode.stream_id || episode.id || episode.episode_id;
+          if (!episodeId) return 0;
+          const row = getProgressByContent('series', String(episodeId));
+          return Math.max(0, Math.min(100, Number(row?.progressPercent || 0)));
+        });
+
+      const total = values.length;
+      const watched = values.filter((value) => value >= 95).length;
+      const average = total > 0
+        ? Math.round(values.reduce((acc, value) => acc + value, 0) / total)
+        : 0;
+
+      result[String(season.season)] = { average, watched, total };
+    });
+
+    return result;
+  }, [seasons, location.search]);
 
   if (catalogLoading || loading) {
     return (
@@ -123,6 +157,7 @@ export function SeriesDetails() {
       <div className="space-y-4">
         {seasons.map((season) => {
           const isOpen = openSeason === season.season;
+          const seasonProgress = seasonProgressByKey[String(season.season)] || { average: 0, watched: 0, total: 0 };
 
           return (
             <section key={String(season.season)} className="rounded-xl border border-white/10 bg-white/5 overflow-hidden">
@@ -135,8 +170,14 @@ export function SeriesDetails() {
                   <div>
                     <h2 className="text-white text-lg md:text-xl font-semibold">Temporada {season.season}</h2>
                     <p className="text-white/60 text-xs md:text-sm mt-1">
-                      {Array.isArray(season.episodes) ? season.episodes.length : 0} episódios
+                      {seasonProgress.total} episódios • {seasonProgress.watched} concluídos
                     </p>
+                    <div className="mt-2 max-w-xs">
+                      <Progress value={seasonProgress.average} />
+                      <p className="text-white/45 text-[10px] mt-1">
+                        Progresso total: {seasonProgress.average}%
+                      </p>
+                    </div>
                   </div>
                   {isOpen ? <ChevronDown className="w-4 h-4 text-white/70" /> : <ChevronRight className="w-4 h-4 text-white/70" />}
                 </div>
@@ -145,13 +186,61 @@ export function SeriesDetails() {
               {isOpen && (
                 <div className="px-4 md:px-5 pb-4 md:pb-5 space-y-2.5">
                   {(Array.isArray(season.episodes) ? season.episodes : []).map((episode, index) => {
-                    const streamId = episode.stream_id || episode.id || episode.episode_id;
+                    // No Xtream, para episódios de série o campo `id` costuma ser o mais confiável.
+                    const streamId = episode.id || episode.stream_id || episode.episode_id;
+                    const episodeProgress = streamId
+                      ? Math.max(0, Math.min(100, Number(getProgressByContent('series', String(streamId))?.progressPercent || 0)))
+                      : 0;
                     const extension =
                       episode.container_extension ||
                       episode.info?.container_extension ||
                       episode.episode_info?.container_extension ||
                       'mp4';
                     const playUrl = streamId ? buildPlayUrl('series', String(streamId), String(extension)) : '';
+                    const seasonEpisodes = Array.isArray(season.episodes) ? season.episodes : [];
+
+                    const openEpisodeQueue = () => {
+                      if (!streamId || !playUrl) return;
+
+                      const queueItems = seasonEpisodes
+                        .slice(index)
+                        .map((row, rowOffset) => {
+                          const queueStreamId = row.id || row.stream_id || row.episode_id;
+                          if (!queueStreamId) return null;
+                          const queueExtension =
+                            row.container_extension ||
+                            row.info?.container_extension ||
+                            row.episode_info?.container_extension ||
+                            'mp4';
+                          const queuePlayUrl = buildPlayUrl('series', String(queueStreamId), String(queueExtension));
+                          return {
+                            contentId: String(queueStreamId),
+                            title: `${series.title} - Episódio ${index + rowOffset + 1}`,
+                            kind: `episodio ${index + rowOffset + 1}`,
+                            src: queuePlayUrl,
+                            streamType: 'series' as const,
+                            imageUrl: series.imageUrl
+                          };
+                        })
+                        .filter((item): item is NonNullable<typeof item> => Boolean(item && item.src));
+
+                      const queueKey = savePlayerQueue(queueItems);
+                      const nextSearch = buildPlayerModalSearch(location.search, {
+                        contentId: String(streamId),
+                        title: `${series.title} - Episódio ${index + 1}`,
+                        kind: `episodio ${index + 1}`,
+                        src: playUrl,
+                        streamType: 'series',
+                        imageUrl: series.imageUrl,
+                        queueKey,
+                        queueIndex: 0
+                      });
+
+                      navigate({
+                        pathname: location.pathname,
+                        search: `?${nextSearch}`
+                      });
+                    };
 
                     return (
                       // Episódio inteiro clicável: ao clicar abrimos o player com o stream correto.
@@ -163,20 +252,13 @@ export function SeriesDetails() {
                         role={streamId ? 'button' : undefined}
                         tabIndex={streamId ? 0 : undefined}
                         onClick={() => {
-                          if (!streamId) return;
-                          const titleParam = encodeURIComponent(series.title);
-                          const kindParam = encodeURIComponent(`episodio ${index + 1}`);
-                          const playParam = playUrl ? `&src=${encodeURIComponent(playUrl)}` : '';
-                          navigate(`/player/${streamId}?title=${titleParam}&kind=${kindParam}${playParam}`);
+                          openEpisodeQueue();
                         }}
                         onKeyDown={(event) => {
                           if (!streamId) return;
                           if (event.key === 'Enter' || event.key === ' ') {
                             event.preventDefault();
-                            const titleParam = encodeURIComponent(series.title);
-                            const kindParam = encodeURIComponent(`episodio ${index + 1}`);
-                            const playParam = playUrl ? `&src=${encodeURIComponent(playUrl)}` : '';
-                            navigate(`/player/${streamId}?title=${titleParam}&kind=${kindParam}${playParam}`);
+                            openEpisodeQueue();
                           }
                         }}
                       >
@@ -188,6 +270,12 @@ export function SeriesDetails() {
                             <p className="text-white/50 text-[10px] mt-1">
                               {streamId ? 'Disponível para reprodução' : 'Indisponível'}
                             </p>
+                            <div className="mt-2">
+                              <Progress value={episodeProgress} />
+                              <p className="text-white/45 text-[10px] mt-1">
+                                {episodeProgress}% assistido
+                              </p>
+                            </div>
                           </div>
                           <span className="text-[10px] text-white/40">Abrir</span>
                         </div>

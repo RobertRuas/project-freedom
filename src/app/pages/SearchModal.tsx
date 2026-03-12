@@ -1,9 +1,11 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useSearchParams } from 'react-router';
 import { X, Search } from 'lucide-react';
 import { ContentGrid } from '../components/ContentGrid';
 import { useXtreamCatalog } from '../api';
 import { CatalogLoader } from '../components/CatalogLoader';
+import { normalizeSearchText } from '../utils/search';
+import { SearchInlineLoader } from '../components/SearchInlineLoader';
 
 /**
  * Página modal de resultados de busca.
@@ -12,8 +14,11 @@ import { CatalogLoader } from '../components/CatalogLoader';
 export function SearchModal() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const initialTerm = searchParams.get('term') ?? '';
-  const [term, setTerm] = useState(initialTerm);
+  const termFromQuery = searchParams.get('term') ?? '';
+  const [term, setTerm] = useState(termFromQuery);
+  const [debouncedTerm, setDebouncedTerm] = useState(termFromQuery);
+  const [isSearching, setIsSearching] = useState(false);
+  const searchInputRef = useRef<HTMLInputElement>(null);
 
   const { loading, error, liveGrid, vodGrid, seriesGrid } = useXtreamCatalog();
   const allGridContent = useMemo(
@@ -21,8 +26,49 @@ export function SearchModal() {
     [liveGrid, vodGrid, seriesGrid]
   );
 
+  useEffect(() => {
+    /**
+     * Mantém o campo do modal sincronizado com o termo vindo da sidebar
+     * quando a navegação para /buscar-modal acontece em tempo real.
+     */
+    setTerm(termFromQuery);
+    setDebouncedTerm(termFromQuery);
+    setIsSearching(false);
+  }, [termFromQuery]);
+
+  useEffect(() => {
+    /**
+     * Ao abrir o modal (ou atualizar termo vindo da sidebar),
+     * o foco deve ir para a busca do próprio modal.
+     */
+    const timeoutId = window.setTimeout(() => {
+      const input = searchInputRef.current;
+      if (!input) return;
+
+      input.focus({ preventScroll: true });
+      const textLength = input.value.length;
+      input.setSelectionRange(textLength, textLength);
+    }, 0);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [termFromQuery]);
+
+  useEffect(() => {
+    setIsSearching(true);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedTerm(term);
+      setIsSearching(false);
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [term]);
+
   const filteredContent = useMemo(() => {
-    const normalizedTerm = term.trim().toLowerCase();
+    const normalizedTerm = normalizeSearchText(debouncedTerm);
 
     if (!normalizedTerm) {
       // Sem termo, mostramos apenas o primeiro lote para manter o modal leve.
@@ -30,13 +76,13 @@ export function SearchModal() {
     }
 
     const filtered = allGridContent.filter((item) => {
-      const titleMatches = item.title.toLowerCase().includes(normalizedTerm);
-      const subtitleMatches = item.subtitle?.toLowerCase().includes(normalizedTerm) ?? false;
+      const titleMatches = normalizeSearchText(item.title).includes(normalizedTerm);
+      const subtitleMatches = normalizeSearchText(item.subtitle || '').includes(normalizedTerm);
 
       return titleMatches || subtitleMatches;
     });
     return filtered.slice(0, 30);
-  }, [term, allGridContent]);
+  }, [debouncedTerm, allGridContent]);
 
   const closeModal = () => {
     if (window.history.length > 1) {
@@ -61,6 +107,7 @@ export function SearchModal() {
             <div className="flex items-center gap-2 rounded-full border border-white/15 bg-black/40 px-3 py-2 w-full md:w-[320px]">
               <Search className="w-4 h-4 text-white/50" />
               <input
+                ref={searchInputRef}
                 type="search"
                 value={term}
                 onChange={(event) => setTerm(event.target.value)}
@@ -84,7 +131,19 @@ export function SearchModal() {
           {loading && <CatalogLoader variant="grid" />}
           {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
           {!loading && !error && (
-            <ContentGrid title="Catálogo" content={filteredContent} viewMode="grid" />
+            <>
+              {isSearching && (
+                <div className="mb-4">
+                  <SearchInlineLoader label="Pesquisando resultados..." />
+                </div>
+              )}
+              <ContentGrid
+                title="Catálogo"
+                content={filteredContent}
+                viewMode="grid"
+                clickBehavior="details"
+              />
+            </>
           )}
         </div>
       </section>

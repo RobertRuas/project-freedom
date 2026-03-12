@@ -7,7 +7,11 @@ import { CategorySelect } from '../components/CategorySelect';
 import { CatalogLoader } from '../components/CatalogLoader';
 
 export function Movies() {
-  const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:movies');
+  /**
+   * Chave versionada para invalidar preferência antiga em grade
+   * e garantir lista como padrão na tela de filmes.
+   */
+  const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:movies:v2', 'list');
   const { loading, error, vodGrid, vodCategories } = useXtreamCatalog();
   const [selectedCategory, setSelectedCategory] = useState<string>('all');
   const [visibleCount, setVisibleCount] = useState(30);

@@ -1,7 +1,8 @@
 import { Heart, Tv, ChevronRight } from 'lucide-react';
-import { useNavigate } from 'react-router';
+import { useLocation, useNavigate } from 'react-router';
 import { ImageWithFallback } from './figma/ImageWithFallback';
 import type { ListContentItem } from '../types/content';
+import { buildPlayerModalSearch } from '../utils/playerModalSearch';
 
 interface ContentListProps {
   title: string;
@@ -13,15 +14,25 @@ interface ContentListProps {
 
 export function ContentList({ title, content, viewMode = 'grid', hasMore, onLoadMore }: ContentListProps) {
   const navigate = useNavigate();
+  const location = useLocation();
 
   const openPlayer = (item: ListContentItem) => {
     if (!item.routeHash) {
       return;
     }
 
-    const titleParam = encodeURIComponent(item.title);
-    const playParam = item.playUrl ? `&src=${encodeURIComponent(item.playUrl)}` : '';
-    navigate(`/player/${item.routeHash}?title=${titleParam}&kind=canal${playParam}`);
+    const nextSearch = buildPlayerModalSearch(location.search, {
+      contentId: item.id,
+      title: item.title,
+      kind: 'canal',
+      src: item.playUrl,
+      streamType: 'live',
+      imageUrl: item.imageUrl
+    });
+    navigate({
+      pathname: location.pathname,
+      search: `?${nextSearch}`
+    });
   };
 
   return (

@@ -1,13 +1,16 @@
-import { Link, useParams } from 'react-router';
+import { Link, useLocation, useNavigate, useParams } from 'react-router';
 import { ArrowLeft, Play, Heart } from 'lucide-react';
 import { ImageWithFallback } from '../components/figma/ImageWithFallback';
 import { useXtreamCatalog } from '../api';
+import { buildPlayerModalSearch } from '../utils/playerModalSearch';
 
 export function MovieDetails() {
-  const { hash } = useParams();
+  const { id } = useParams();
+  const navigate = useNavigate();
+  const location = useLocation();
   const { loading, error, vodGrid } = useXtreamCatalog();
 
-  const movie = vodGrid.find((item) => item.routeHash === hash);
+  const movie = vodGrid.find((item) => item.routeHash === id);
 
   if (loading) {
     return <p className="text-white/60 text-sm">Carregando filme...</p>;
@@ -31,7 +34,7 @@ export function MovieDetails() {
         <div className="rounded-xl border border-white/10 bg-white/5 p-6 md:p-8">
           <h1 className="text-white text-2xl md:text-3xl font-semibold mb-2">Filme não encontrado</h1>
           <p className="text-white/70 text-sm md:text-base">
-            Esse hash é dinâmico e muda a cada vez que a aplicação é carregada.
+            Não foi possível localizar esse filme no catálogo atual.
           </p>
         </div>
       </section>
@@ -71,13 +74,27 @@ export function MovieDetails() {
           </div>
 
           <div className="flex flex-wrap gap-3 mt-6">
-            <Link
-              to={`/player/${movie.routeHash}?title=${encodeURIComponent(movie.title)}&kind=filme${movie.playUrl ? `&src=${encodeURIComponent(movie.playUrl)}` : ''}`}
+            <button
+              type="button"
+              onClick={() => {
+                const nextSearch = buildPlayerModalSearch(location.search, {
+                  contentId: movie.id,
+                  title: movie.title,
+                  kind: 'filme',
+                  src: movie.playUrl,
+                  streamType: 'vod',
+                  imageUrl: movie.imageUrl
+                });
+                navigate({
+                  pathname: location.pathname,
+                  search: `?${nextSearch}`
+                });
+              }}
               className="inline-flex items-center gap-2 rounded-md bg-white text-black px-4 py-2 text-sm font-semibold"
             >
               <Play className="w-4 h-4 fill-current" />
               Assistir
-            </Link>
+            </button>
             <button
               type="button"
               className="inline-flex items-center gap-2 rounded-md bg-black/70 text-white px-4 py-2 text-sm border border-white/10"

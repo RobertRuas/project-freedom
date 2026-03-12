@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { ContentGrid } from '../components/ContentGrid';
 import { FeatureGrid } from '../components/FeatureGrid';
 import { searchFeatures } from '../data/feature';
@@ -6,9 +6,13 @@ import { CatalogPageHeader } from '../components/CatalogPageHeader';
 import { useCatalogViewMode } from '../hooks/useCatalogViewMode';
 import { useXtreamCatalog } from '../api';
 import { CatalogLoader } from '../components/CatalogLoader';
+import { normalizeSearchText } from '../utils/search';
+import { SearchInlineLoader } from '../components/SearchInlineLoader';
 
 export function SearchPage() {
   const [term, setTerm] = useState('');
+  const [debouncedTerm, setDebouncedTerm] = useState('');
+  const [isSearching, setIsSearching] = useState(false);
   const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:search');
   const { loading, error, liveGrid, vodGrid, seriesGrid } = useXtreamCatalog();
   const allGridContent = useMemo(
@@ -16,8 +20,20 @@ export function SearchPage() {
     [liveGrid, vodGrid, seriesGrid]
   );
 
+  useEffect(() => {
+    setIsSearching(true);
+    const timeoutId = window.setTimeout(() => {
+      setDebouncedTerm(term);
+      setIsSearching(false);
+    }, 280);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [term]);
+
   const filteredContent = useMemo(() => {
-    const normalizedTerm = term.trim().toLowerCase();
+    const normalizedTerm = normalizeSearchText(debouncedTerm);
 
     if (!normalizedTerm) {
       // Sem termo, limitamos para manter a busca leve.
@@ -25,13 +41,13 @@ export function SearchPage() {
     }
 
     const filtered = allGridContent.filter((item) => {
-      const titleMatches = item.title.toLowerCase().includes(normalizedTerm);
-      const subtitleMatches = item.subtitle?.toLowerCase().includes(normalizedTerm) ?? false;
+      const titleMatches = normalizeSearchText(item.title).includes(normalizedTerm);
+      const subtitleMatches = normalizeSearchText(item.subtitle || '').includes(normalizedTerm);
 
       return titleMatches || subtitleMatches;
     });
     return filtered.slice(0, 30);
-  }, [term, allGridContent]);
+  }, [debouncedTerm, allGridContent]);
 
   return (
     <div>
@@ -60,7 +76,19 @@ export function SearchPage() {
       {loading && <CatalogLoader variant={viewMode} />}
       {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
       {!loading && !error && (
-        <ContentGrid title="Resultados" content={filteredContent} viewMode={viewMode} />
+        <>
+          {isSearching && (
+            <div className="mb-4">
+              <SearchInlineLoader label="Pesquisando no catálogo..." />
+            </div>
+          )}
+          <ContentGrid
+            title="Resultados"
+            content={filteredContent}
+            viewMode={viewMode}
+            clickBehavior="details"
+          />
+        </>
       )}
     </div>
   );

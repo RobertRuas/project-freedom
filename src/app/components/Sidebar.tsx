@@ -1,5 +1,5 @@
-import { useState, type ComponentType } from 'react';
-import { Home, Tv, Film, Library, Search, Settings, User, Menu, X } from 'lucide-react';
+import { useEffect, useRef, useState, type ComponentType } from 'react';
+import { Home, Tv, Film, Library, Search, Settings, Menu, X } from 'lucide-react';
 import { Link, useLocation, useNavigate } from 'react-router';
 
 type NavigationItem = {
@@ -17,7 +17,6 @@ const navigationItems: NavigationItem[] = [
 
 const footerNavigationItems: NavigationItem[] = [
   { label: 'Configurações', to: '/configuracoes', icon: Settings },
-  { label: 'Perfil', to: '/perfil', icon: User },
 ];
 
 export function Sidebar() {
@@ -25,6 +24,8 @@ export function Sidebar() {
   const navigate = useNavigate();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const desktopSearchInputRef = useRef<HTMLInputElement>(null);
+  const mobileSearchInputRef = useRef<HTMLInputElement>(null);
   const isTvMode =
     typeof document !== 'undefined' && document.documentElement.classList.contains('tv-mode');
 
@@ -39,8 +40,39 @@ export function Sidebar() {
       return;
     }
 
-    navigate(`/buscar-modal?term=${encodeURIComponent(normalizedTerm)}`);
+    navigate(`/buscar-modal?term=${encodeURIComponent(normalizedTerm)}`, { replace: true });
   };
+
+  useEffect(() => {
+    const normalizedTerm = searchTerm.trim();
+    if (!normalizedTerm) {
+      return;
+    }
+
+    const activeElement = document.activeElement;
+    const isSidebarSearchFocused =
+      activeElement === desktopSearchInputRef.current || activeElement === mobileSearchInputRef.current;
+
+    /**
+     * Autoabrir modal somente durante digitação na busca da sidebar.
+     * Isso evita "reabrir" o modal quando o usuário já clicou em um resultado.
+     */
+    if (!isSidebarSearchFocused && location.pathname !== '/buscar-modal') {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      const expectedPath = `/buscar-modal?term=${encodeURIComponent(normalizedTerm)}`;
+      const currentPath = `${location.pathname}${location.search}`;
+      if (currentPath !== expectedPath) {
+        navigate(expectedPath, { replace: true });
+      }
+    }, 220);
+
+    return () => {
+      window.clearTimeout(timeoutId);
+    };
+  }, [searchTerm, navigate, location.pathname, location.search]);
 
   return (
     <>
@@ -73,6 +105,7 @@ export function Sidebar() {
           >
             <Search className="w-4 h-4 text-white/50" />
             <input
+              ref={desktopSearchInputRef}
               type="search"
               value={searchTerm}
               onChange={(event) => setSearchTerm(event.target.value)}
@@ -156,6 +189,7 @@ export function Sidebar() {
             >
               <Search className="w-4 h-4 text-white/50" />
               <input
+                ref={mobileSearchInputRef}
                 type="search"
                 value={searchTerm}
                 onChange={(event) => setSearchTerm(event.target.value)}
