@@ -19,8 +19,7 @@ export function PlayerOverlay() {
   const hlsRef = useRef<Hls | null>(null);
   const lastProgressSaveAtRef = useRef(0);
   const [isBuffering, setIsBuffering] = useState(true);
-  const [loadingLabel, setLoadingLabel] = useState('Preparando reprodução...');
-  const [sourceAttemptIndex, setSourceAttemptIndex] = useState(0);
+  const [loadingLabel, setLoadingLabel] = useState('');
 
   const isOpen = searchParams.get('player') === '1';
   const queueKey = searchParams.get('queueKey');
@@ -51,73 +50,13 @@ export function PlayerOverlay() {
 
     return '/videos/sample.mp4';
   }, [sourceParam]);
-  const sourceCandidates = useMemo(() => {
-    const normalized = String(resolvedSource || '').trim();
-    if (!normalized) return [] as string[];
-
-    const candidates = [normalized];
-    const [withoutQuery, query = ''] = normalized.split('?');
-    const querySuffix = query ? `?${query}` : '';
-    const queryJoiner = query ? '&' : '?';
-    const cacheBustSuffix = `${queryJoiner}retry=${Date.now()}`;
-
-    if (/\.mp4($|\?)/i.test(normalized)) {
-      candidates.push(withoutQuery.replace(/\.mp4$/i, '.m3u8') + querySuffix);
-    } else if (/\.m3u8($|\?)/i.test(normalized)) {
-      candidates.push(withoutQuery.replace(/\.m3u8$/i, '.mp4') + querySuffix);
-    }
-
-    // Última tentativa: reaplica a URL original com cache-bust para evitar edge cache ruim.
-    candidates.push(`${normalized}${cacheBustSuffix}`);
-
-    return Array.from(new Set(candidates.filter(Boolean)));
-  }, [resolvedSource]);
-  const activeSource = sourceCandidates[sourceAttemptIndex] || resolvedSource;
-  const proxiedSource = useMemo(() => {
-    const normalized = String(activeSource || '').trim();
-    if (!normalized) return normalized;
-
-    // URLs locais (assets) não precisam de proxy.
-    const isRemoteHttp = /^https?:\/\//i.test(normalized);
-    if (!isRemoteHttp) {
-      return normalized;
-    }
-
-    /**
-     * Episódios de série precisam passar pelo proxy para contornar
-     * bloqueios de CORS/Cloudflare no navegador.
-     * Também mantemos proxy para HLS em qualquer tipo.
-     */
-    const mustProxy = streamType === 'series' || /\.m3u8($|\?)/i.test(normalized);
-    if (!mustProxy) {
-      return normalized;
-    }
-
-    return `/api/xtream/stream?url=${encodeURIComponent(normalized)}`;
-  }, [activeSource, streamType]);
+  const activeSource = String(resolvedSource || '').trim();
   const resumeProgress = useMemo(() => {
     if (!contentId) {
       return null;
     }
     return getProgressByContent(streamType, contentId);
   }, [contentId, streamType]);
-
-  useEffect(() => {
-    setSourceAttemptIndex(0);
-  }, [resolvedSource]);
-
-  const tryNextSourceCandidate = () => {
-    if (sourceAttemptIndex + 1 >= sourceCandidates.length) {
-      setIsBuffering(true);
-      setLoadingLabel('Falha ao carregar stream.');
-      return false;
-    }
-
-    setIsBuffering(true);
-    setLoadingLabel('Tentando formato alternativo...');
-    setSourceAttemptIndex((current) => current + 1);
-    return true;
-  };
 
   /**
    * Persiste progresso local da reprodução.
@@ -232,9 +171,9 @@ export function PlayerOverlay() {
 
     lastProgressSaveAtRef.current = 0;
     setIsBuffering(true);
-    setLoadingLabel('Iniciando download do conteúdo...');
+    setLoadingLabel('');
 
-    const isHls = /\.m3u8($|\?)/i.test(proxiedSource);
+    const isHls = /\.m3u8($|\?)/i.test(activeSource);
     const canPlayHls = video.canPlayType('application/vnd.apple.mpegurl') !== '';
 
     if (isHls && !canPlayHls && Hls.isSupported()) {
@@ -244,17 +183,15 @@ export function PlayerOverlay() {
       });
       hls.on(Hls.Events.ERROR, (_event, data) => {
         if (data?.fatal) {
-          if (!tryNextSourceCandidate()) {
-            setIsBuffering(true);
-            setLoadingLabel('Falha ao carregar stream.');
-          }
+          setIsBuffering(false);
+          setLoadingLabel('');
         }
       });
-      hls.loadSource(proxiedSource);
+      hls.loadSource(activeSource);
       hls.attachMedia(video);
       hlsRef.current = hls;
     } else {
-      video.src = proxiedSource;
+      video.src = activeSource;
     }
 
     const onCanPlay = () => {
@@ -285,15 +222,15 @@ export function PlayerOverlay() {
     };
     const onLoadStart = () => {
       setIsBuffering(true);
-      setLoadingLabel('Baixando dados do stream...');
+      setLoadingLabel('');
     };
     const onWaiting = () => {
       setIsBuffering(true);
-      setLoadingLabel('Carregando mais dados...');
+      setLoadingLabel('');
     };
     const onStalled = () => {
       setIsBuffering(true);
-      setLoadingLabel('Conexão lenta. Aguardando...');
+      setLoadingLabel('');
     };
     const onPlaying = () => {
       setIsBuffering(false);
@@ -302,10 +239,8 @@ export function PlayerOverlay() {
       setIsBuffering(false);
     };
     const onError = () => {
-      if (!tryNextSourceCandidate()) {
-        setIsBuffering(true);
-        setLoadingLabel('Falha ao carregar stream.');
-      }
+      setIsBuffering(false);
+      setLoadingLabel('');
     };
     const onEnded = () => {
       openNextInQueue();
@@ -344,7 +279,7 @@ export function PlayerOverlay() {
         hlsRef.current = null;
       }
     };
-  }, [isOpen, activeSource, proxiedSource, resumeProgress?.positionSeconds, queueIndex, queueItems.length, sourceAttemptIndex, sourceCandidates.length]);
+  }, [isOpen, activeSource, resumeProgress?.positionSeconds, queueIndex, queueItems.length]);
 
   if (!isOpen) {
     return null;
@@ -376,15 +311,15 @@ export function PlayerOverlay() {
 
     nextSearchParams.set('player', '1');
     nextSearchParams.set('contentId', nextItem.contentId);
-    nextSearchParams.set('title', nextItem.title);
-    nextSearchParams.set('kind', nextItem.kind);
-    nextSearchParams.set('src', nextItem.src);
     nextSearchParams.set('streamType', nextItem.streamType);
-    if (nextItem.imageUrl) {
-      nextSearchParams.set('imageUrl', nextItem.imageUrl);
-    } else {
-      nextSearchParams.delete('imageUrl');
-    }
+    /**
+     * Mantemos URL enxuta para fila de episódios.
+     * Metadados e src vêm do item da fila salvo em cache local.
+     */
+    nextSearchParams.delete('title');
+    nextSearchParams.delete('kind');
+    nextSearchParams.delete('src');
+    nextSearchParams.delete('imageUrl');
     if (queueKey) {
       nextSearchParams.set('queueKey', queueKey);
       nextSearchParams.set('queueIndex', String(queueIndex + 1));
@@ -404,7 +339,7 @@ export function PlayerOverlay() {
       <section className="w-screen h-screen bg-black relative">
         <header className="absolute top-0 left-0 right-0 z-10 flex items-center justify-between px-4 md:px-6 py-3 bg-gradient-to-b from-black/85 to-transparent">
           <div>
-            <p className="text-white text-sm md:text-base font-semibold">{decodeURIComponent(title)}</p>
+            <p className="text-white text-sm md:text-base font-semibold">{title}</p>
             <p className="text-white/50 text-xs md:text-sm">{kind} • id {contentId || 'indisponivel'}</p>
           </div>
 
@@ -423,7 +358,7 @@ export function PlayerOverlay() {
             <div className="absolute inset-0 z-20 flex items-center justify-center pointer-events-none">
               <div className="inline-flex items-center gap-3 rounded-full border border-white/10 bg-black/70 px-4 py-2 text-white/85">
                 <Loader2 className="w-4 h-4 animate-spin" />
-                <span className="text-xs md:text-sm">{loadingLabel}</span>
+                {loadingLabel ? <span className="text-xs md:text-sm">{loadingLabel}</span> : null}
               </div>
             </div>
           )}
@@ -434,7 +369,7 @@ export function PlayerOverlay() {
             preload="metadata"
             autoPlay
             playsInline
-            src={proxiedSource}
+            src={activeSource}
           />
         </div>
       </section>

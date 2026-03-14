@@ -1,10 +1,9 @@
 import { useMemo, useState } from 'react';
 import { ContentGrid } from '../components/ContentGrid';
-import { CatalogPageHeader } from '../components/CatalogPageHeader';
 import { useCatalogViewMode } from '../hooks/useCatalogViewMode';
 import { useXtreamCatalog } from '../api';
 import { CategorySelect } from '../components/CategorySelect';
-import { CatalogLoader } from '../components/CatalogLoader';
+import { CatalogPage } from './CatalogPage';
 
 export function Series() {
   const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:series');
@@ -27,33 +26,31 @@ export function Series() {
   const hasMore = selectedCategory !== 'all' && filteredItems.length > visibleCount;
 
   return (
-    <div>
-      <CatalogPageHeader title="Séries" viewMode={viewMode} onToggleViewMode={toggleViewMode} />
-
-      {/* Página dedicada para séries no padrão de grade. */}
-      {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
-      {!loading && !error && (
-        <>
-          <CategorySelect
-            label="Categoria"
-            value={selectedCategory}
-            options={seriesCategories}
-            onChange={(value) => {
-              setSelectedCategory(value);
-              setVisibleCount(30);
-            }}
-          />
-
-          <ContentGrid
-            title="Catálogo"
-            content={visibleItems}
-            viewMode={viewMode}
-            hasMore={hasMore}
-            onLoadMore={() => setVisibleCount((current) => current + 30)}
-          />
-        </>
+    <CatalogPage
+      title="Séries"
+      viewMode={viewMode}
+      onToggleViewMode={toggleViewMode}
+      loading={loading}
+      error={error}
+      filters={(
+        <CategorySelect
+          label="Categoria"
+          value={selectedCategory}
+          options={seriesCategories}
+          onChange={(value) => {
+            setSelectedCategory(value);
+            setVisibleCount(30);
+          }}
+        />
       )}
-    </div>
+    >
+      <ContentGrid
+        title="Catálogo"
+        content={visibleItems}
+        viewMode={viewMode}
+        hasMore={hasMore}
+        onLoadMore={() => setVisibleCount((current) => current + 30)}
+      />
+    </CatalogPage>
   );
 }

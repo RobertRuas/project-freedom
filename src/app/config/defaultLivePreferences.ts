@@ -15,6 +15,13 @@ export const DEFAULT_FAVORITE_LIVE_CHANNEL_TITLES = [
 ];
 
 /**
+ * Séries padrão para destaque na Home.
+ */
+export const DEFAULT_FAVORITE_SERIES_TITLES = [
+  'Big Bang: A Teoria'
+];
+
+/**
  * Categorias de canais que devem ficar visíveis por padrão.
  * Todas as demais serão ocultadas inicialmente.
  */

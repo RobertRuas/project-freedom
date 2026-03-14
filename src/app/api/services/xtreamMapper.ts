@@ -12,13 +12,13 @@ const normalizePlayBaseUrl = (serverUrl: string) => {
 
 /**
  * Normaliza URL de imagem para carregar diretamente do Xtream.
- * Sem uso de API intermediária.
+ * Sem uso de API intermediária ou fallback local de origem.
  */
-const normalizeImageUrl = (rawUrl: string | undefined, fallback: string) => {
+const normalizeImageUrl = (rawUrl: string | undefined) => {
   const input = String(rawUrl || '').trim();
 
   if (!input) {
-    return fallback;
+    return '';
   }
 
   try {
@@ -47,17 +47,9 @@ const normalizeImageUrl = (rawUrl: string | undefined, fallback: string) => {
       resolved = sanitizedInput;
     }
 
-    /**
-     * Alguns painéis devolvem `stream_icon` com domínio que responde 404
-     * (ex.: ufoprime.com/images). Nesses casos usamos fallback local.
-     */
-    if (/ufoprime\.com:80\/images\//i.test(resolved)) {
-      return fallback;
-    }
-
     return resolved;
   } catch {
-    return input || fallback;
+    return '';
   }
 };
 
@@ -88,7 +80,7 @@ export const mapLiveToGrid = (items: XtreamLiveStream[]): GridContentItem[] =>
     id: String(item.stream_id),
     title: item.name || 'Canal',
     subtitle: 'Ao vivo',
-    imageUrl: normalizeImageUrl(item.stream_icon, '/images/posters/tv.svg'),
+    imageUrl: normalizeImageUrl(item.stream_icon),
     type: 'tv',
     playUrl: createPlayUrl('live', String(item.stream_id)),
     // Mantemos o id da categoria em string para facilitar filtros na UI.
@@ -101,7 +93,7 @@ export const mapVodToGrid = (items: XtreamVodStream[]): GridContentItem[] =>
     id: String(item.stream_id),
     title: item.name || 'Filme',
     subtitle: 'Catálogo',
-    imageUrl: normalizeImageUrl(item.stream_icon, '/images/posters/movie.svg'),
+    imageUrl: normalizeImageUrl(item.stream_icon),
     type: 'movie',
     playUrl: createPlayUrl('vod', String(item.stream_id), item.container_extension || 'mp4'),
     // Mantemos o id da categoria em string para facilitar filtros na UI.
@@ -114,7 +106,7 @@ export const mapSeriesToGrid = (items: XtreamSeriesItem[]): GridContentItem[] =>
     id: String(item.series_id),
     title: item.name || 'Série',
     subtitle: 'Série',
-    imageUrl: normalizeImageUrl(item.cover, '/images/posters/series.svg'),
+    imageUrl: normalizeImageUrl(item.cover),
     type: 'series',
     // Mantemos o id da categoria em string para facilitar filtros na UI.
     categoryId: item.category_id != null ? String(item.category_id) : undefined,
@@ -132,7 +124,7 @@ export const mapLiveToList = (items: XtreamLiveStream[]): ListContentItem[] =>
     channel: item.name || 'Canal',
     time: 'Ao vivo',
     live: true,
-    imageUrl: normalizeImageUrl(item.stream_icon, '/images/thumbs/tv-channel.svg'),
+    imageUrl: normalizeImageUrl(item.stream_icon),
     playUrl: createPlayUrl('live', String(item.stream_id)),
     // Mantemos o id da categoria em string para facilitar filtros na UI.
     categoryId: item.category_id != null ? String(item.category_id) : undefined,

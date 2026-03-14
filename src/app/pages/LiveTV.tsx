@@ -1,11 +1,10 @@
 import { ContentList } from '../components/ContentList';
-import { CatalogPageHeader } from '../components/CatalogPageHeader';
 import { useCatalogViewMode } from '../hooks/useCatalogViewMode';
 import { useXtreamCatalog } from '../api';
 import { useEffect, useMemo, useState } from 'react';
 import { CategorySelect } from '../components/CategorySelect';
-import { CatalogLoader } from '../components/CatalogLoader';
 import { useHiddenLiveCategories } from '../hooks/useHiddenLiveCategories';
+import { CatalogPage } from './CatalogPage';
 
 export function LiveTV() {
   const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:live-tv', 'list');
@@ -50,33 +49,31 @@ export function LiveTV() {
   }, [selectedCategory, visibleCategories]);
 
   return (
-    <div>
-      <CatalogPageHeader title="TV ao Vivo" viewMode={viewMode} onToggleViewMode={toggleViewMode} />
-
-      {/* Cada bloco representa uma trilha editorial da TV ao vivo. */}
-      {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
-      {!loading && !error && (
-        <>
-          <CategorySelect
-            label="Categoria"
-            value={selectedCategory}
-            options={visibleCategories}
-            onChange={(value) => {
-              setSelectedCategory(value);
-              setVisibleCount(30);
-            }}
-          />
-
-          <ContentList
-            title="Canais"
-            content={visibleItems}
-            viewMode={viewMode}
-            hasMore={hasMore}
-            onLoadMore={() => setVisibleCount((current) => current + 30)}
-          />
-        </>
+    <CatalogPage
+      title="TV ao Vivo"
+      viewMode={viewMode}
+      onToggleViewMode={toggleViewMode}
+      loading={loading}
+      error={error}
+      filters={(
+        <CategorySelect
+          label="Categoria"
+          value={selectedCategory}
+          options={visibleCategories}
+          onChange={(value) => {
+            setSelectedCategory(value);
+            setVisibleCount(30);
+          }}
+        />
       )}
-    </div>
+    >
+      <ContentList
+        title="Canais"
+        content={visibleItems}
+        viewMode={viewMode}
+        hasMore={hasMore}
+        onLoadMore={() => setVisibleCount((current) => current + 30)}
+      />
+    </CatalogPage>
   );
 }

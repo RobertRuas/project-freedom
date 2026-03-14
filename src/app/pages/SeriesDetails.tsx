@@ -227,11 +227,11 @@ export function SeriesDetails() {
                       const queueKey = savePlayerQueue(queueItems);
                       const nextSearch = buildPlayerModalSearch(location.search, {
                         contentId: String(streamId),
-                        title: `${series.title} - Episódio ${index + 1}`,
-                        kind: `episodio ${index + 1}`,
-                        src: playUrl,
+                        /**
+                         * Para séries, evitamos colocar src/título na URL.
+                         * O player lê esses dados direto da fila em cache local.
+                         */
                         streamType: 'series',
-                        imageUrl: series.imageUrl,
                         queueKey,
                         queueIndex: 0
                       });

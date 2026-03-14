@@ -1,11 +1,12 @@
 import { useEffect, useMemo } from 'react';
 import { ContentGrid } from '../components/ContentGrid';
-import { CatalogPageHeader } from '../components/CatalogPageHeader';
 import { useCatalogViewMode } from '../hooks/useCatalogViewMode';
 import { useXtreamCatalog } from '../api';
-import { CatalogLoader } from '../components/CatalogLoader';
 import { useHiddenLiveCategories } from '../hooks/useHiddenLiveCategories';
 import { useDefaultFavoriteLiveChannels } from '../hooks/useDefaultFavoriteLiveChannels';
+import { CatalogPage } from './CatalogPage';
+import { DEFAULT_FAVORITE_SERIES_TITLES } from '../config/defaultLivePreferences';
+import { normalizeSearchText } from '../utils/search';
 
 export function Home() {
   /**
@@ -13,7 +14,7 @@ export function Home() {
    * e garantir lista como padrão na tela inicial.
    */
   const { viewMode, toggleViewMode } = useCatalogViewMode('catalog-view:home:v2', 'list');
-  const { loading, error, liveGrid, liveCategories } = useXtreamCatalog();
+  const { loading, error, liveGrid, liveCategories, seriesGrid } = useXtreamCatalog();
   const { initializeDefaults } = useHiddenLiveCategories();
   const { favoriteLiveGrid } = useDefaultFavoriteLiveChannels(liveGrid);
 
@@ -24,19 +25,34 @@ export function Home() {
   }, [liveCategories, initializeDefaults]);
 
   const favoriteOnlyGrid = useMemo(() => favoriteLiveGrid, [favoriteLiveGrid]);
+  const favoriteSeriesGrid = useMemo(() => {
+    if (!seriesGrid.length) return [];
+
+    return DEFAULT_FAVORITE_SERIES_TITLES
+      .map((expectedTitle) => {
+        const normalizedExpected = normalizeSearchText(expectedTitle);
+        return (
+          seriesGrid.find((item) => {
+            const normalizedItem = normalizeSearchText(item.title);
+            return normalizedItem.includes(normalizedExpected) || normalizedExpected.includes(normalizedItem);
+          }) || null
+        );
+      })
+      .filter((item): item is NonNullable<typeof item> => Boolean(item));
+  }, [seriesGrid]);
 
   return (
-    <div>
-      <CatalogPageHeader title="Início" viewMode={viewMode} onToggleViewMode={toggleViewMode} />
-
-      {/* Home dedicada apenas aos canais favoritos padrão. */}
-      {loading && <CatalogLoader variant={viewMode} />}
-      {error && <p className="text-red-400 text-sm whitespace-pre-line">Erro: {error}</p>}
-      {!loading && !error && (
-        <>
-          <ContentGrid title="Canais Favoritos" content={favoriteOnlyGrid} viewMode={viewMode} />
-        </>
-      )}
-    </div>
+    <CatalogPage
+      title="Início"
+      viewMode={viewMode}
+      onToggleViewMode={toggleViewMode}
+      loading={loading}
+      error={error}
+    >
+      <ContentGrid title="Canais Favoritos" content={favoriteOnlyGrid} viewMode={viewMode} />
+      {favoriteSeriesGrid.length > 0 ? (
+        <ContentGrid title="Série Padrão" content={favoriteSeriesGrid} viewMode={viewMode} />
+      ) : null}
+    </CatalogPage>
   );
 }
